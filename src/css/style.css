@@ -1,0 +1,32 @@
+body {
+  background: #000;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: white;
+}
+
+#p5_loading {
+  color: white;
+  font-size: 3em;
+  font-weight: bold;
+  text-align: center;
+  margin: 0 auto;
+  width: 640px;
+}
+
+#sketch-container {
+  position: absolute;
+  display: block;
+  margin: 0 auto;
+
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+canvas {
+  border: 1px solid white;
+  margin: 0 auto;
+  display: block;
+}
