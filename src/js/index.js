@@ -29,7 +29,12 @@ let canvas,
   arrBuff,
   buf8,
   buf32,
-  imageData;
+  viewport;
+
+let viewportCvs, viewportCtx;
+
+let W, H;
+
 let texture;
 
 let textureData;
@@ -92,9 +97,21 @@ window.preload = function() {
 }
 
 window.setup = function() {
-  createCanvas(800, 600);
+  // createCanvas(windowWidth, windowHeight);
+  createCanvas(640, 480);
 
+  viewportCvs = document.createElement('canvas');
+  viewportCvs.width = 640;
+  viewportCvs.height = 480;
+  viewportCtx = viewportCvs.getContext('2d');
+  
+  // viewportCvs = document.getElementById('defaultCanvas0');
   ctx = document.getElementById('defaultCanvas0').getContext('2d');
+  // viewportCtx = document.getElementById('defaultCanvas0').getContext('2d');
+
+  // ctx = viewportCtx;
+  W = viewportCvs.width;
+  H = viewportCvs.height;
 
   pos = createVector(17, 7);
   dir = createVector(-1, 0);
@@ -103,8 +120,8 @@ window.setup = function() {
   rayPos = createVector();
   rayDir = createVector();
 
-  imageData = ctx.getImageData(0, 0, width, height);
-  arrBuff = new ArrayBuffer(imageData.data.length);
+  viewport = viewportCtx.getImageData(0, 0, W, H);
+  arrBuff = new ArrayBuffer(viewport.data.length);
 
   buf8 = new Uint8ClampedArray(arrBuff);
   buf32 = new Uint32Array(arrBuff);
@@ -163,12 +180,13 @@ window.draw = function() {
 
 
   // TODO: pass in an image?
+
+
   // For every vertical line on the viewport...
-  // Raycasting works on 1-pixel width columns along the viewport
-  for (let x = 0; x < width; x++) {
+  for (let x = 0; x < W; x++) {
 
     //
-    let camX = 2 * x / width - 1;
+    let camX = 2 * x / W - 1;
 
     rayPos.set(pos.x, pos.y);
 
@@ -234,6 +252,8 @@ window.draw = function() {
       }
     }
 
+
+
     ////////////////////////////////////////////////////////////////
     let wallDist;
     let perpWallDist = 0;
@@ -257,12 +277,12 @@ window.draw = function() {
     wallX -= Math.floor(wallX);
 
     //
-    let lineHeight = abs(height / wallDist);
+    let lineHeight = abs(H / wallDist);
 
     // 
     var realLineHeight = lineHeight;
 
-    lineHeight = min(lineHeight, height);
+    lineHeight = min(lineHeight, H);
     let texX = floor(wallX * 64);
 
     // If we are so close to a wall that the wall sliver is greater than the viewport,
@@ -272,9 +292,9 @@ window.draw = function() {
     let end = 64;
 
     //
-    if (realLineHeight > height) {
+    if (realLineHeight > H) {
       // 8000 / 480 = 16.6
-      let texShownPercent = height / realLineHeight;
+      let texShownPercent = H / realLineHeight;
 
       // (480/8000) * 64
       let texelsToShow = texShownPercent * 64;
@@ -284,8 +304,8 @@ window.draw = function() {
     }
 
     // where to start and end drawing on the canvas in the Y direction
-    let cvsStartY = floor(height / 2 - lineHeight / 2) * width;
-    let cvsEndY = cvsStartY + (lineHeight * width);
+    let cvsStartY = floor(H / 2 - lineHeight / 2) * W;
+    let cvsEndY = cvsStartY + (lineHeight * W);
 
     /*
       The first implementation of this algorithm relied on a clear() method that filled the color 
@@ -299,7 +319,7 @@ window.draw = function() {
       So instead, we iterate over the entire sliver from top to bottom and check if we're rendering 
       the ceiling, wall, or floor. 
     */
-    for (let viewPortY = 0; viewPortY < width * height; viewPortY += width) {
+    for (let viewPortY = 0; viewPortY < W * H; viewPortY += W) {
 
       // ceiling
       if (viewPortY < cvsStartY) {
@@ -312,10 +332,10 @@ window.draw = function() {
       // wall
       else if (viewPortY >= cvsStartY) {
         // sliverHeightPx ranges from 0..height
-        let sliverHeightPx = (cvsEndY - cvsStartY) / width;
+        let sliverHeightPx = (cvsEndY - cvsStartY) / W;
 
         //
-        let texYNormalized = ((viewPortY / width) - (cvsStartY / width)) / sliverHeightPx;
+        let texYNormalized = ((viewPortY / W) - (cvsStartY / W)) / sliverHeightPx;
 
         // map 0..1 to 0..imageHeight
         let yTexel = floor(start + (end - start) * texYNormalized);
@@ -335,19 +355,26 @@ window.draw = function() {
   let delta = (now - lastTime) / 1000.0;
 
   update(delta);
-  imageData.data.set(buf8);
+  
 
-  ctx.putImageData(imageData, 0, 0);
+  background(0);
+  viewport.data.set(buf8);
+  viewportCtx.putImageData(viewport, 0, 0);
+
+  ctx.drawImage(viewportCvs, 0, 0);
+  // image(viewportCtx, 10, 120);
 
   noFill();
   stroke(255);
   let fps = floor(frameRate());
   text(fps, 10, 10);
 
+  text( floor(delta*1000), 10, 40);
+
   strokeWeight(2);
   stroke(50);
   noFill();
-  rect(0, 0, 800, 600);
+  rect(0, 0, viewportCvs.width, viewportCvs.height);
 
   lastTime = now;
 }
