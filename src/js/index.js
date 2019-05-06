@@ -6,9 +6,17 @@ let walkSpeed = 5;
 
 let keys = {};
 
+const CeilingColor = 0xFF000000;
+const FloorColor = 0xFF000000;
+
+
 // 
 let pos, dir, right;
 let rot = 0;
+
+let rayPos;
+let rayDir;
+
 
 let FOV = 0.6;
 
@@ -16,8 +24,8 @@ let lastTime = Date.now(),
   now = Date.now();
 
 //
-let canvas, 
-  ctx, 
+let canvas,
+  ctx,
   arrBuff,
   buf8,
   buf32,
@@ -92,6 +100,9 @@ window.setup = function() {
   dir = createVector(-1, 0);
   right = createVector(0, -1);
 
+  rayPos = createVector();
+  rayDir = createVector();
+
   imageData = ctx.getImageData(0, 0, width, height);
   arrBuff = new ArrayBuffer(imageData.data.length);
 
@@ -102,20 +113,19 @@ window.setup = function() {
 }
 
 /*
-
-*/
+ */
 function update(dt) {
-  if (keys.right) {
+  if (keys.ArrowRight) {
     rot -= ROT_SPEED;
   }
-  if (keys.left) {
+  if (keys.ArrowLeft) {
     rot += ROT_SPEED;
   }
 
-  if (keys.up) {
+  if (keys.ArrowUp) {
     moveCharacter(1, dt);
   }
-  if (keys.down) {
+  if (keys.ArrowDown) {
     moveCharacter(-1, dt);
   }
 }
@@ -137,9 +147,12 @@ function moveCharacter(doNegate, dt) {
 
 /*
  */
-window.draw = function () {
+window.draw = function() {
+
+  // We can't render until the map is loaded
   if (mapLoaded === false) { return; }
-  now = Date.now(); 
+
+  now = Date.now();
 
   //
   dir.x = cos(rot);
@@ -148,28 +161,27 @@ window.draw = function () {
   right.x = sin(rot);
   right.y = cos(rot);
 
-  let startX = 0;
 
-  let rayPos = createVector();
-  let rayDir = createVector();
-  let perpWallDist;
-
+  // TODO: pass in an image?
   // For every vertical line on the viewport...
-  for (let x = startX; x < width - startX; x++) {
+  // Raycasting works on 1-pixel width columns along the viewport
+  for (let x = 0; x < width; x++) {
 
-    let camX = 2.0 * x / width - 1;
+    //
+    let camX = 2 * x / width - 1;
+
     rayPos.set(pos.x, pos.y);
 
-    rayDir.set(dir.x + right.x * camX, dir.y + right.y * camX);
+    //
+    rayDir.set(dir.x + (right.x * camX), dir.y + (right.y * camX));
 
     let mapX = floor(rayPos.x);
     let mapY = floor(rayPos.y);
 
-    let sideDistX;
-    let sideDistY;
-
-    let scaleX = 1.0 / rayDir.x;
-    let scaleY = 1.0 / rayDir.y;
+    //
+    //
+    let scaleX = 1 / rayDir.x;
+    let scaleY = 1 / rayDir.y;
 
     // scale the vector by the inverse of the x component,
     // which makes the x component equal to one.
@@ -177,10 +189,11 @@ window.draw = function () {
     let deltaDistX = createVector(1, rayDir.y * scaleX).mag();
     let deltaDistY = createVector(1, rayDir.x * scaleY).mag();
 
-    let wallDist;
     let stepX, stepY;
-    let hit = 0;
-    let side = 0;
+
+    //
+    let sideDistX;
+    let sideDistY;
 
     if (rayDir.x < 0) {
       stepX = -1;
@@ -198,10 +211,13 @@ window.draw = function () {
       sideDistY = (mapY + 1.0 - rayPos.y) * deltaDistY;
     }
 
+
     ////////////////////////////////////////////////////////////////
     // Search
-    // noprotect
+    let hit = 0;
+    let side = 0;
     while (hit == 0) {
+
       if (sideDistX < sideDistY) {
         sideDistX += deltaDistX;
         mapX += stepX;
@@ -212,20 +228,21 @@ window.draw = function () {
         side = 1;
       }
 
+      // We hit something that isn't empty space, we can stop looping
       if (worldMap[mapX][mapY] > 0) {
         hit = 1;
       }
     }
 
     ////////////////////////////////////////////////////////////////
-
-    perpWallDist = 0;
-    //Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
+    let wallDist;
+    let perpWallDist = 0;
+    // Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
     if (side == 0) {
-      wallDist = abs((mapX - rayPos.x + (1.0 - stepX) / 2.0) / rayDir.x);
+      wallDist = abs((mapX - rayPos.x + (1 - stepX) / 2) / rayDir.x);
       perpWallDist = wallDist;
     } else {
-      wallDist = abs((mapY - rayPos.y + (1.0 - stepY) / 2.0) / rayDir.y);
+      wallDist = abs((mapY - rayPos.y + (1 - stepY) / 2) / rayDir.y);
       perpWallDist = wallDist;
     }
 
@@ -236,9 +253,13 @@ window.draw = function () {
       wallX = rayPos.x + perpWallDist * rayDir.x;
     }
 
+    //
     wallX -= Math.floor(wallX);
 
+    //
     let lineHeight = abs(height / wallDist);
+
+    // 
     var realLineHeight = lineHeight;
 
     lineHeight = min(lineHeight, height);
@@ -266,17 +287,30 @@ window.draw = function () {
     let cvsStartY = floor(height / 2 - lineHeight / 2) * width;
     let cvsEndY = cvsStartY + (lineHeight * width);
 
-    // To be more efficient, we start iterating only where the actual sliver begins.
-    // We also exit early, only iterating up to the end of the sliver.
+    /*
+      The first implementation of this algorithm relied on a clear() method that filled the color 
+      buffer with a bk color.
 
+      Then we tried to be efficient here by only starting the iteration where the actual sliver 
+      of wall begins. Turns out that doing a clear() is too expensive in terms of rendering.
+
+      It isn't very efficient either since the walls will end up covering up most of the background anyway.
+
+      So instead, we iterate over the entire sliver from top to bottom and check if we're rendering 
+      the ceiling, wall, or floor. 
+    */
     for (let viewPortY = 0; viewPortY < width * height; viewPortY += width) {
 
+      // ceiling
       if (viewPortY < cvsStartY) {
-        buf32[x + viewPortY] = 0xFF000000;
+        buf32[x + viewPortY] = CeilingColor;
       }
-      if (viewPortY > cvsEndY / 1) {
-        buf32[x + viewPortY] = 0xFF000000;
-      } else if (viewPortY >= cvsStartY) {
+      // floor
+      else if (viewPortY > cvsEndY) {
+        buf32[x + viewPortY] = FloorColor;
+      }
+      // wall
+      else if (viewPortY >= cvsStartY) {
         // sliverHeightPx ranges from 0..height
         let sliverHeightPx = (cvsEndY - cvsStartY) / width;
 
@@ -290,7 +324,7 @@ window.draw = function () {
 
         let tex = yTexel * (imageWidth * 4) + texX * 4;
 
-        let d = min(1, 1/wallDist);
+        let d = min(1, 1 / wallDist);
         let [r, g, b] = [(sampleTexture(tex) * d) << 16, (sampleTexture(tex + 1) * d) << 8, sampleTexture(tex + 2) * d];
 
         buf32[x + viewPortY] = 0xFF000000 | r | g | b;
@@ -313,8 +347,8 @@ window.draw = function () {
   strokeWeight(2);
   stroke(50);
   noFill();
-  rect(0,0, 800, 600);
-  
+  rect(0, 0, 800, 600);
+
   lastTime = now;
 }
 
@@ -322,39 +356,15 @@ function sampleTexture(index) {
   return texBuff8[index];
 }
 
-window.keyReleased = function(key) {
-  if (key.key === 'ArrowUp') {
-    keys.up = false;
-  }
-  if (key.key === 'ArrowDown') {
-    keys.down = false
-  }
-  if (key.key === 'ArrowLeft') {
-    keys.left = false
-  }
-  if (key.key === 'ArrowRight') {
-    keys.right = false
-  }
+window.keyReleased = function(evt) {
+  keys[evt.key] = false;
 }
 
-window.keyPressed = function(key) {
-  if (key.key === 'ArrowUp') {
-    keys.up = true;
-  }
-  if (key.key === 'ArrowDown') {
-    keys.down = true;
-  }
-  if (key.key === 'ArrowLeft') {
-    keys.left = true
-  }
-  if (key.key === 'ArrowRight') {
-    keys.right = true
-  }
+window.keyPressed = function(evt) {
+  keys[evt.key] = true;
 }
 
 // let myShader;
-
-// function drawWalls() {}
 
 // function drawSky() {
 //   fill(33, 66, 99);
