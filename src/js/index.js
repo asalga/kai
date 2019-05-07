@@ -3,7 +3,6 @@
 import Raycaster from './Raycaster.js';
 import Camera from './Camera.js';
 
-
 let delta;
 
 window.keys = {};

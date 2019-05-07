@@ -9,12 +9,6 @@ export default class Camera {
     this.dir = createVector(-1, 0);
     this.right = createVector(0, 1);
     this.rot = 0;
-
-    // this.dir.x = cos(this.rot);
-    // this.dir.y = -sin(this.rot);
-
-    // this.right.x = sin(this.rot);
-    // this.right.y = cos(this.rot);
   }
 
   update(dt) {

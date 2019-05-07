@@ -194,14 +194,18 @@ export default class Raycaster {
         the ceiling, wall, or floor. 
       */
       for (let viewPortY = 0; viewPortY < W * H; viewPortY += W) {
+ 
+        let d = min(1, 1 / wallDist);
 
         // ceiling
         if (viewPortY < cvsStartY) {
-          buf32[x + viewPortY] = CeilingColor;
+          let col = 255 - viewPortY/W;
+          buf32[x + viewPortY] = 0xFF000000 | (col << 16) ;
         }
         // floor
         else if (viewPortY > cvsEndY) {
-          buf32[x + viewPortY] = FloorColor;
+          let col =  255 - (H - (viewPortY/W));
+          buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
         }
         // wall
         else if (viewPortY >= cvsStartY) {
@@ -218,7 +222,7 @@ export default class Raycaster {
 
           let tex = yTexel * (imageWidth * 4) + texX * 4;
 
-          let d = min(1, 1 / wallDist);
+         
           let [r, g, b] = [(Raycaster.sampleTexture(tex) * d) << 16, (Raycaster.sampleTexture(tex + 1) * d) << 8, Raycaster.sampleTexture(tex + 2) * d];
 
           buf32[x + viewPortY] = 0xFF000000 | r | g | b;
