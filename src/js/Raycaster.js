@@ -21,7 +21,21 @@ let W, H;
 
 let pos, dir, right;
 
+// These will be used to index into the worldMap Array
+let mapCellCol, mapCellRow;
+
+let scaleX, scaleY;
+let stepX, stepY;
+let sideDistX, sideDistY;
+let deltaDistX, deltaDistY;
+let hit, side;
+let wallDist;
+let perpWallDist;
+let camX;
+
 /*
+  Terms:
+    sliver - a 1-pixel wide vertical column of the canvas
 
 */
 export default class Raycaster {
@@ -51,92 +65,96 @@ export default class Raycaster {
     }
   }
 
+  static clearBackground() {
+    buf32.fill(0);
+  }
+
   static render(cam) {
     pos = cam.pos;
     right = cam.right;
     dir = cam.dir;
 
+    Raycaster.clearBackground();
+
+    rayPos.set(pos.x, pos.y);
+
+    // Floor the values outside the loop to save on processing.
+    let [flooredRayPosX, flooredRayPosY] = [floor(rayPos.x), floor(rayPos.y)];
+  
+    let rads = (cam.fov /180) * Math.PI;
+    let _fov = tan(rads/2);
+
     // For every vertical line on the viewport...
     for (let x = 0; x < W; x++) {
 
-      //
-      let camX = 2 * x / W - 1;
+      // Each sliver needs to be assigned a slightly different 'perspective'
+      // map values from left to right side of canvas to
+      // -1(left) to 0(center) to +1(right)
+      camX = 2 * (x / (W - 1)) - 1;
+      camX *= _fov;
 
-      rayPos.set(pos.x, pos.y);
-
-      //
+      // Each sliver will be assigned our forward direction vector
+      // and added to it.
       rayDir.set(dir.x + (right.x * camX), dir.y + (right.y * camX));
 
-      let mapX = floor(rayPos.x);
-      let mapY = floor(rayPos.y);
+      // Since our algorithm updates these values we'll need to reset
+      // them for each iteration of the loop
+      [mapCellCol, mapCellRow] = [flooredRayPosX, flooredRayPosY];
 
       //
-      //
-      let scaleX = 1 / rayDir.x;
-      let scaleY = 1 / rayDir.y;
+      [scaleX, scaleY] = [1 / rayDir.x, 1 / rayDir.y];
 
       // scale the vector by the inverse of the x component,
       // which makes the x component equal to one.
       // then calculate the magnitude
-      let deltaDistX = createVector(1, rayDir.y * scaleX).mag();
-      let deltaDistY = createVector(1, rayDir.x * scaleY).mag();
-
-      let stepX, stepY;
+      deltaDistX = createVector(1, rayDir.y * scaleX).mag();
+      deltaDistY = createVector(1, rayDir.x * scaleY).mag();
 
       //
-      let sideDistX;
-      let sideDistY;
-
       if (rayDir.x < 0) {
         stepX = -1;
-        sideDistX = (rayPos.x - mapX) * deltaDistX;
+        sideDistX = (rayPos.x - mapCellCol) * deltaDistX;
       } else {
         stepX = 1;
-        sideDistX = (mapX + 1.0 - rayPos.x) * deltaDistX;
+        sideDistX = (mapCellCol + 1 - rayPos.x) * deltaDistX;
       }
 
       if (rayDir.y < 0) {
         stepY = -1;
-        sideDistY = (rayPos.y - mapY) * deltaDistY;
+        sideDistY = (rayPos.y - mapCellRow) * deltaDistY;
       } else {
         stepY = 1;
-        sideDistY = (mapY + 1.0 - rayPos.y) * deltaDistY;
+        sideDistY = (mapCellRow + 1 - rayPos.y) * deltaDistY;
       }
-
 
       ////////////////////////////////////////////////////////////////
       // Search
-      let hit = 0;
-      let side = 0;
+      hit = 0;
       while (hit == 0) {
 
         if (sideDistX < sideDistY) {
           sideDistX += deltaDistX;
-          mapX += stepX;
+          mapCellCol += stepX;
           side = 0;
         } else {
           sideDistY += deltaDistY;
-          mapY += stepY;
+          mapCellRow += stepY;
           side = 1;
         }
 
         // We hit something that isn't empty space, we can stop looping
-        if (worldMap[mapX][mapY] > 0) {
+        if (worldMap[mapCellCol][mapCellRow] > 0) {
           hit = 1;
         }
       }
 
-
-
       ////////////////////////////////////////////////////////////////
-      let wallDist;
-      let perpWallDist = 0;
       // Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
       if (side == 0) {
-        wallDist = abs((mapX - rayPos.x + (1 - stepX) / 2) / rayDir.x);
+        wallDist = abs((mapCellCol - rayPos.x + (1 - stepX) / 2) / rayDir.x);
         perpWallDist = wallDist;
       } else {
-        wallDist = abs((mapY - rayPos.y + (1 - stepY) / 2) / rayDir.y);
+        wallDist = abs((mapCellRow - rayPos.y + (1 - stepY) / 2) / rayDir.y);
         perpWallDist = wallDist;
       }
 
@@ -154,7 +172,7 @@ export default class Raycaster {
       let lineHeight = abs(H / wallDist);
 
       // 
-      var realLineHeight = lineHeight;
+      let realLineHeight = lineHeight;
 
       lineHeight = min(lineHeight, H);
       let texX = floor(wallX * 64);
@@ -193,19 +211,19 @@ export default class Raycaster {
         So instead, we iterate over the entire sliver from top to bottom and check if we're rendering 
         the ceiling, wall, or floor. 
       */
-      for (let viewPortY = 0; viewPortY < W * H; viewPortY += W) {
- 
+      for (let viewPortY = cvsStartY; viewPortY < W * H; viewPortY += W) {
+
         let d = min(1, 1 / wallDist);
 
         // ceiling
         if (viewPortY < cvsStartY) {
-          let col = 255 - viewPortY/W;
-          buf32[x + viewPortY] = 0xFF000000 | (col << 16) ;
+          // let col = 255 - viewPortY/W;
+          // buf32[x + viewPortY] = 0xFF000000 | (col << 16) ;
         }
         // floor
         else if (viewPortY > cvsEndY) {
-          let col =  255 - (H - (viewPortY/W));
-          buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
+          // let col =  255 - (H - (viewPortY/W));
+          // buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
         }
         // wall
         else if (viewPortY >= cvsStartY) {
@@ -222,7 +240,7 @@ export default class Raycaster {
 
           let tex = yTexel * (imageWidth * 4) + texX * 4;
 
-         
+
           let [r, g, b] = [(Raycaster.sampleTexture(tex) * d) << 16, (Raycaster.sampleTexture(tex + 1) * d) << 8, Raycaster.sampleTexture(tex + 2) * d];
 
           buf32[x + viewPortY] = 0xFF000000 | r | g | b;
@@ -233,7 +251,4 @@ export default class Raycaster {
     viewportCtx.putImageData(viewport, 0, 0);
 
   }
-
-
-
 }

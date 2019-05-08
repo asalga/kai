@@ -5,6 +5,7 @@ export default class Camera {
   constructor(cfg) {
     this.world = cfg.world;
 
+    this.fov = 90;
     this.pos = cfg.pos;
     this.dir = createVector(-1, 0);
     this.right = createVector(0, 1);
