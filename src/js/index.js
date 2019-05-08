@@ -11,13 +11,12 @@ let lastTime = Date.now(),
   now = Date.now();
 
 let canvas, ctx;
-let viewportCvs;
+let viewportCvs, viewportCvs2;
 
 const imageWidth = 64;
 let texture;
 let textureData;
 let texData = new ArrayBuffer(64 * 64 * 4);
-// let texBuff8 ;//= new Uint8ClampedArray(texData);
 let texBuff32 = new Uint32Array(texData);
 
 let myMap;
@@ -25,6 +24,8 @@ let worldMap = [];
 let mapLoaded = true;
 
 let cam;
+let raycaster;
+let raycaster2;
 
 /*
 
@@ -65,10 +66,15 @@ window.preload = function() {
       pos: createVector(17, 7)
     });
 
+    // viewportCvs2 = document.createElement('canvas');
+    // viewportCvs2.width = 64;
+    // viewportCvs2.height = 64;
+    // raycaster2 = new Raycaster(viewportCvs2, worldMap);
+
     viewportCvs = document.createElement('canvas');
     viewportCvs.width = 640;
     viewportCvs.height = 480;
-    Raycaster.init(viewportCvs, worldMap);
+    raycaster = new Raycaster(viewportCvs, worldMap);//, raycaster2.buf8);
 
     mapLoaded = true;
   });
@@ -106,8 +112,12 @@ window.draw = function() {
 
 function render() {
   background(0);
-  Raycaster.render(cam);
-  ctx.drawImage(viewportCvs, 0, 0);
+
+  // raycaster2.render(cam);
+  // ctx.drawImage(viewportCvs2, 10, 10);
+
+  raycaster.render(cam);
+  ctx.drawImage(raycaster.cvs, 0, 0);
 
   noFill();
   stroke(255);

@@ -1,37 +1,8 @@
-//
-let hasInit = false;
 const imageWidth = 64;
 
 const CeilingColor = 0xFF000000;
 const FloorColor = 0xFF000000;
 
-let arrBuff
-let buf8; // = new Uint8ClampedArray(arrBuff);
-let buf32; // = new Uint32Array(arrBuff);
-
-let worldMap;
-let viewportCvs;
-let viewportCtx;
-let viewport;
-
-let rayPos;
-let rayDir;
-
-let W, H;
-
-let pos, dir, right;
-
-// These will be used to index into the worldMap Array
-let mapCellCol, mapCellRow;
-
-let scaleX, scaleY;
-let stepX, stepY;
-let sideDistX, sideDistY;
-let deltaDistX, deltaDistY;
-let hit, side;
-let wallDist;
-let perpWallDist;
-let camX;
 
 /*
   Terms:
@@ -40,49 +11,73 @@ let camX;
 */
 export default class Raycaster {
 
-  static sampleTexture(index) {
+  sampleTexture(index) {
+    if(this.textest){
+      return this.textest[index];
+      
+    }
     return window.texBuff8[index];
   }
 
-  static init(v, m) {
-    if (hasInit === false) {
-      hasInit = true;
+  constructor(v, m, t) {
+    this.cvs = v;
 
-      viewportCvs = v;
-      worldMap = m;
+    // this.viewportCvs = v;
+    this.worldMap = m;
+    this.textest = t;
 
-      W = viewportCvs.width;
-      H = viewportCvs.height;
+    this.W = this.cvs.width;
+    this.H = this.cvs.height;
 
-      viewportCtx = viewportCvs.getContext('2d');
-      viewport = viewportCtx.getImageData(0, 0, W, H);
-      arrBuff = new ArrayBuffer(viewport.data.length);
-      buf8 = new Uint8ClampedArray(arrBuff);
-      buf32 = new Uint32Array(arrBuff);
-
-      rayPos = createVector();
-      rayDir = createVector();
-    }
+    this.viewportCtx = this.cvs.getContext('2d');
+    this.viewport = this.viewportCtx.getImageData(0, 0, this.W, this.H);
+    this.arrBuff = new ArrayBuffer(this.viewport.data.length);
+    this.buf8 = new Uint8ClampedArray(this.arrBuff);
+    this.buf32 = new Uint32Array(this.arrBuff);
   }
 
-  static clearBackground() {
-    buf32.fill(0);
+  clearBackground() {
+    this.buf32.fill(0);
   }
 
-  static render(cam) {
-    pos = cam.pos;
-    right = cam.right;
-    dir = cam.dir;
+  render(cam) {
+    
+    
+    let rayPos = createVector();
+    let rayDir = createVector();
 
-    Raycaster.clearBackground();
+    // These will be used to index into the worldMap Array
+    let mapCellCol, mapCellRow;
+
+    let scaleX, scaleY;
+    let stepX, stepY;
+    let sideDistX, sideDistY;
+    let deltaDistX, deltaDistY;
+    let hit, side;
+    let wallDist;
+    let perpWallDist;
+    let camX;
+
+    let pos = cam.pos;
+    let right = cam.right;
+    let dir = cam.dir;
+
+    let H = this.H;
+    let W = this.W;
+    let worldMap = this.worldMap;
+
+
+
+
+    this.clearBackground();
 
     rayPos.set(pos.x, pos.y);
 
     // Floor the values outside the loop to save on processing.
     let [flooredRayPosX, flooredRayPosY] = [floor(rayPos.x), floor(rayPos.y)];
-  
-    let rads = (cam.fov /180) * Math.PI;
-    let _fov = tan(rads/2);
+
+    let rads = (cam.fov / 180) * Math.PI;
+    let _fov = tan(rads / 2);
 
     // For every vertical line on the viewport...
     for (let x = 0; x < W; x++) {
@@ -169,7 +164,7 @@ export default class Raycaster {
       wallX -= Math.floor(wallX);
 
       //
-      let lineHeight = abs(H / wallDist);
+      let lineHeight = H / wallDist;
 
       // 
       let realLineHeight = lineHeight;
@@ -217,13 +212,13 @@ export default class Raycaster {
 
         // ceiling
         if (viewPortY < cvsStartY) {
-          // let col = 255 - viewPortY/W;
-          // buf32[x + viewPortY] = 0xFF000000 | (col << 16) ;
+          let col = 255 - viewPortY / W;
+          this.buf32[x + viewPortY] = 0xFF000000 | (col << 16);
         }
         // floor
         else if (viewPortY > cvsEndY) {
-          // let col =  255 - (H - (viewPortY/W));
-          // buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
+          let col =  255 - (H - (viewPortY/W));
+          this.buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
         }
         // wall
         else if (viewPortY >= cvsStartY) {
@@ -241,14 +236,15 @@ export default class Raycaster {
           let tex = yTexel * (imageWidth * 4) + texX * 4;
 
 
-          let [r, g, b] = [(Raycaster.sampleTexture(tex) * d) << 16, (Raycaster.sampleTexture(tex + 1) * d) << 8, Raycaster.sampleTexture(tex + 2) * d];
+          let [r, g, b] = [(this.sampleTexture(tex) * d) << 16, (this.sampleTexture(tex + 1) * d) << 8, this.sampleTexture(tex + 2) * d];
 
-          buf32[x + viewPortY] = 0xFF000000 | r | g | b;
+          this.buf32[x + viewPortY] = 0xFF000000 | r | g | b;
         }
       }
     }
-    viewport.data.set(buf8);
-    viewportCtx.putImageData(viewport, 0, 0);
+    
+    this.viewport.data.set(this.buf8);
+    this.viewportCtx.putImageData(this.viewport, 0, 0);
 
   }
 }
