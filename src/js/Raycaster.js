@@ -1,5 +1,4 @@
 const imageWidth = 64;
-
 const CeilingColor = 0xFF000000;
 const FloorColor = 0xFF000000;
 
@@ -12,9 +11,9 @@ const FloorColor = 0xFF000000;
 export default class Raycaster {
 
   sampleTexture(index) {
-    if(this.textest){
+    if (this.textest) {
       return this.textest[index];
-      
+
     }
     return window.texBuff8[index];
   }
@@ -22,7 +21,6 @@ export default class Raycaster {
   constructor(v, m, t) {
     this.cvs = v;
 
-    // this.viewportCvs = v;
     this.worldMap = m;
     this.textest = t;
 
@@ -41,9 +39,7 @@ export default class Raycaster {
   }
 
   render(cam) {
-    
-    
-    let rayPos = createVector();
+    let rayOrigin = createVector();
     let rayDir = createVector();
 
     // These will be used to index into the worldMap Array
@@ -57,8 +53,8 @@ export default class Raycaster {
     let wallDist;
     let perpWallDist;
     let camX;
+    let wallX;
 
-    let pos = cam.pos;
     let right = cam.right;
     let dir = cam.dir;
 
@@ -66,34 +62,39 @@ export default class Raycaster {
     let W = this.W;
     let worldMap = this.worldMap;
 
-
-
-
     this.clearBackground();
 
-    rayPos.set(pos.x, pos.y);
+    rayOrigin.set(cam.pos.x, cam.pos.y);
 
     // Floor the values outside the loop to save on processing.
-    let [flooredRayPosX, flooredRayPosY] = [floor(rayPos.x), floor(rayPos.y)];
+    let [flooredRayPosX, flooredRayPosY] = [floor(rayOrigin.x), floor(rayOrigin.y)];
 
     let rads = (cam.fov / 180) * Math.PI;
     let _fov = tan(rads / 2);
 
-    // For every vertical line on the viewport...
+    /*
+      For each vertical line / sliver of the viewport, we're going to cast a ray into the
+      scene that will eventually hit an edge of a square in the map that is being occupied
+      by a wall.
+    */ 
     for (let x = 0; x < W; x++) {
 
-      // Each sliver needs to be assigned a slightly different 'perspective'
-      // map values from left to right side of canvas to
-      // -1(left) to 0(center) to +1(right)
+      /*
+        Each sliver needs to be assigned a slightly different 'perspective'
+        map values from left to right side of canvas to  -1(left) to 0(center) to +1(right)
+      */
       camX = 2 * (x / (W - 1)) - 1;
       camX *= _fov;
 
-      // Each sliver will be assigned our forward direction vector
-      // and added to it.
+      /*
+        Each sliver will be assigned our forward direction vector and added to it.
+      */
       rayDir.set(dir.x + (right.x * camX), dir.y + (right.y * camX));
 
-      // Since our algorithm updates these values we'll need to reset
-      // them for each iteration of the loop
+      /*
+        Since our algorithm updates these values we'll need to reset them 
+        for each iteration of the loop
+      */
       [mapCellCol, mapCellRow] = [flooredRayPosX, flooredRayPosY];
 
       //
@@ -108,19 +109,21 @@ export default class Raycaster {
       //
       if (rayDir.x < 0) {
         stepX = -1;
-        sideDistX = (rayPos.x - mapCellCol) * deltaDistX;
+        sideDistX = (rayOrigin.x - mapCellCol) * deltaDistX;
       } else {
         stepX = 1;
-        sideDistX = (mapCellCol + 1 - rayPos.x) * deltaDistX;
+        sideDistX = (mapCellCol + 1 - rayOrigin.x) * deltaDistX;
       }
 
       if (rayDir.y < 0) {
         stepY = -1;
-        sideDistY = (rayPos.y - mapCellRow) * deltaDistY;
+        sideDistY = (rayOrigin.y - mapCellRow) * deltaDistY;
       } else {
         stepY = 1;
-        sideDistY = (mapCellRow + 1 - rayPos.y) * deltaDistY;
+        sideDistY = (mapCellRow + 1 - rayOrigin.y) * deltaDistY;
       }
+
+
 
       ////////////////////////////////////////////////////////////////
       // Search
@@ -143,33 +146,31 @@ export default class Raycaster {
         }
       }
 
+
+
       ////////////////////////////////////////////////////////////////
       // Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
       if (side == 0) {
-        wallDist = abs((mapCellCol - rayPos.x + (1 - stepX) / 2) / rayDir.x);
-        perpWallDist = wallDist;
+        wallDist = abs((mapCellCol - rayOrigin.x + (1 - stepX) / 2) / rayDir.x);
       } else {
-        wallDist = abs((mapCellRow - rayPos.y + (1 - stepY) / 2) / rayDir.y);
-        perpWallDist = wallDist;
+        wallDist = abs((mapCellRow - rayOrigin.y + (1 - stepY) / 2) / rayDir.y);
       }
 
-      let wallX;
       if (side === 0) {
-        wallX = rayPos.y + perpWallDist * rayDir.y;
+        wallX = rayOrigin.y + wallDist * rayDir.y;
       } else {
-        wallX = rayPos.x + perpWallDist * rayDir.x;
+        wallX = rayOrigin.x + wallDist * rayDir.x;
       }
 
       //
       wallX -= Math.floor(wallX);
 
-      //
-      let lineHeight = H / wallDist;
-
       // 
-      let realLineHeight = lineHeight;
+      let unclampedSliverHeight = H / wallDist;
 
-      lineHeight = min(lineHeight, H);
+      // clamp the height
+      let sliverHeight = min(H / wallDist, H);
+
       let texX = floor(wallX * 64);
 
       // If we are so close to a wall that the wall sliver is greater than the viewport,
@@ -178,10 +179,12 @@ export default class Raycaster {
       let start = 0;
       let end = 64;
 
-      //
-      if (realLineHeight > H) {
+      // We'll need to figure out where to start sampling the texture if the sliver height
+      // is longer than the viewport height (we'll have to sampler lower down and also not
+      // sample until the 'bottom' of the texture)
+      if (unclampedSliverHeight > H) {
         // 8000 / 480 = 16.6
-        let texShownPercent = H / realLineHeight;
+        let texShownPercent = H / unclampedSliverHeight;
 
         // (480/8000) * 64
         let texelsToShow = texShownPercent * 64;
@@ -191,8 +194,8 @@ export default class Raycaster {
       }
 
       // where to start and end drawing on the canvas in the Y direction
-      let cvsStartY = floor(H / 2 - lineHeight / 2) * W;
-      let cvsEndY = cvsStartY + (lineHeight * W);
+      let cvsStartY = floor(H / 2 - sliverHeight / 2) * W;
+      let cvsEndY = cvsStartY + (sliverHeight * W);
 
       /*
         The first implementation of this algorithm relied on a clear() method that filled the color 
@@ -217,8 +220,8 @@ export default class Raycaster {
         }
         // floor
         else if (viewPortY > cvsEndY) {
-          let col =  255 - (H - (viewPortY/W));
-          this.buf32[x + viewPortY] = 0xFF000000 | ((col/5) << 8);
+          let col = 255 - (H - (viewPortY / W));
+          this.buf32[x + viewPortY] = 0xFF000000 | ((col / 5) << 8);
         }
         // wall
         else if (viewPortY >= cvsStartY) {
@@ -235,14 +238,13 @@ export default class Raycaster {
 
           let tex = yTexel * (imageWidth * 4) + texX * 4;
 
-
           let [r, g, b] = [(this.sampleTexture(tex) * d) << 16, (this.sampleTexture(tex + 1) * d) << 8, this.sampleTexture(tex + 2) * d];
 
           this.buf32[x + viewPortY] = 0xFF000000 | r | g | b;
         }
       }
     }
-    
+
     this.viewport.data.set(this.buf8);
     this.viewportCtx.putImageData(this.viewport, 0, 0);
 

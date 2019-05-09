@@ -24,8 +24,7 @@ let worldMap = [];
 let mapLoaded = true;
 
 let cam;
-let raycaster;
-let raycaster2;
+let raycaster, raycaster2;
 
 /*
 
