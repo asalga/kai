@@ -40,7 +40,7 @@ export default class Raycaster {
 
   render(cam) {
     let rayOrigin = createVector();
-    let rayDir = createVector();
+    let camRay = createVector();
 
     // These will be used to index into the worldMap Array
     let mapCellCol, mapCellRow;
@@ -89,7 +89,7 @@ export default class Raycaster {
       /*
         Each sliver will be assigned our forward direction vector and added to it.
       */
-      rayDir.set(dir.x + (right.x * camX), dir.y + (right.y * camX));
+      camRay.set(dir.x + (right.x * camX), dir.y + (right.y * camX));
 
       /*
         Since our algorithm updates these values we'll need to reset them 
@@ -97,17 +97,32 @@ export default class Raycaster {
       */
       [mapCellCol, mapCellRow] = [flooredRayPosX, flooredRayPosY];
 
-      //
-      [scaleX, scaleY] = [1 / rayDir.x, 1 / rayDir.y];
+      /*
+        We're given a 2D grid with 1-unit squares along with a line that exists within that space.
+        The line can be oriented in any angle.
+
+        Let's assume the line is not completely vertical, but instead is on an angle.
+        The line will intercept a vertical line in that grid. Then after 1 x-units right or left
+        it will intersect another vertical line. Note that this will form a right angled triangle.
+
+        We know the base of the triangle is 1 unit. The line began at the left edge of a square and
+        'ended' at the next square unit over.
+
+        We would like to calculate is the rise/y distance of this line.
+
+        We need to create a value such that when multiplied by camRay.x or camRay.y 
+        it will respectively scale that scalar value so that it will 'reach' 1 unit across.
+      */
+      [scaleX, scaleY] = [1 / camRay.x, 1 / camRay.y];
 
       // scale the vector by the inverse of the x component,
       // which makes the x component equal to one.
       // then calculate the magnitude
-      deltaDistX = createVector(1, rayDir.y * scaleX).mag();
-      deltaDistY = createVector(1, rayDir.x * scaleY).mag();
+      deltaDistX = createVector(1, camRay.y * scaleX).mag();
+      deltaDistY = createVector(1, camRay.x * scaleY).mag();
 
       //
-      if (rayDir.x < 0) {
+      if (camRay.x < 0) {
         stepX = -1;
         sideDistX = (rayOrigin.x - mapCellCol) * deltaDistX;
       } else {
@@ -115,7 +130,7 @@ export default class Raycaster {
         sideDistX = (mapCellCol + 1 - rayOrigin.x) * deltaDistX;
       }
 
-      if (rayDir.y < 0) {
+      if (camRay.y < 0) {
         stepY = -1;
         sideDistY = (rayOrigin.y - mapCellRow) * deltaDistY;
       } else {
@@ -151,15 +166,15 @@ export default class Raycaster {
       ////////////////////////////////////////////////////////////////
       // Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
       if (side == 0) {
-        wallDist = abs((mapCellCol - rayOrigin.x + (1 - stepX) / 2) / rayDir.x);
+        wallDist = abs((mapCellCol - rayOrigin.x + (1 - stepX) / 2) / camRay.x);
       } else {
-        wallDist = abs((mapCellRow - rayOrigin.y + (1 - stepY) / 2) / rayDir.y);
+        wallDist = abs((mapCellRow - rayOrigin.y + (1 - stepY) / 2) / camRay.y);
       }
 
       if (side === 0) {
-        wallX = rayOrigin.y + wallDist * rayDir.y;
+        wallX = rayOrigin.y + wallDist * camRay.y;
       } else {
-        wallX = rayOrigin.x + wallDist * rayDir.x;
+        wallX = rayOrigin.x + wallDist * camRay.x;
       }
 
       //
